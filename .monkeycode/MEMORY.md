@@ -68,11 +68,11 @@ Entries discovered by the Agent during task execution should follow this format:
 
 [Project Knowledge Summary]
 - Date: 2026-10-02
-- Context: Discovered by Agent while running the test suite after moving v1 code into backup/
+- Context: Discovered by Agent while running the test suite
 - Category: Testing Methods
 - Instructions:
   - 运行测试用 `python3 -m pytest -q`，测试代码在 `tests/`。
-  - `backup/v1/tests/` 仍保留 v1 测试，会导入已不存在的模块；根目录的 `pytest.ini` 已用 `testpaths = tests` 限定收集范围，避免裸 `pytest` 递归到 backup 而报收集错误。
+  - 根目录 `pytest.ini` 用 `testpaths = tests` 限定收集范围，避免裸 `pytest` 扫描到无关目录。
 
 [Project Knowledge Summary]
 - Date: 2026-10-03

@@ -177,4 +177,6 @@
 
 # Downloaded datasets (fetched at runtime, not source)
 artifacts/data/
-backup/**/data/
+
+# torch.compile debug dumps
+torch_compile_debug/

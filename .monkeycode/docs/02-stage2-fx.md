@@ -87,7 +87,7 @@ torch.fx.proxy.TraceError: symbolically traced variables cannot be used as input
 
 ### 4.6 融合候选查找 find_fusion_candidates（L98-L126）
 
-与 v1 相比，v2 的链多了一层 BN，因此从 ReLU 反查两层。
+`Conv -> BN -> ReLU` 链比经典 LeNet 多一层 BN，因此从 ReLU 反查两层。
 
 - L98 `def find_fusion_candidates(gm) -> list[str]:`：返回形如 `conv2d -> batch_norm -> relu -> max_pool2d` 的候选链。
 - L100 `candidates = []`。

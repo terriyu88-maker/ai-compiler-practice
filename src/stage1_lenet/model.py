@@ -1,7 +1,7 @@
 """Stage 1 的模型定义。
 
 主模型是 LeNetBN：在经典 LeNet 的两个卷积后各插入一个 BatchNorm2d，形成 Conv-BN-ReLU 块，
-贯穿整个项目（Stage 1-4）。v1 的无 BN LeNet 已在 Stage 4 迁移完成后移除，副本见 backup/v1/。
+贯穿整个项目（Stage 1-4）。
 """
 
 from torch import nn

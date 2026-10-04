@@ -9,11 +9,11 @@
 | 训练精度 | 5 epoch 测试准确率 >= 98% | 98.93% |
 | 手写前向一致 | 最大绝对误差 < 1e-4 | 7.451e-08 |
 | 手写梯度一致 | 最大绝对误差 < 1e-4 | 3.353e-08（覆盖全部 14 组参数） |
-| 单元测试 | 通过 | 1 passed（全量 9 passed） |
+| 单元测试 | 通过 | 1 passed（全量 8 passed） |
 
 ## 2. 唯一主模型：LeNet-BN
 
-与 v1 的 LeNet 相比，只在两个卷积后各插入一个 `BatchNorm2d`，其余拓扑不变。逐层结构（含无参数层）：
+LeNet-BN 在两个卷积后各插入一个 `BatchNorm2d`，其余拓扑与经典 LeNet 一致。逐层结构（含无参数层）：
 
 | 序号 | 层 | 配置 | 输出 shape |
 |------|----|------|-----------|
@@ -32,9 +32,7 @@
 | 13 | ReLU | - | 84 |
 | 14 | Linear | 84 -> 10 | 10 |
 
-可学习参数 61750 个（v1 的 61706 加上 bn1 的 12 个与 bn2 的 32 个）。打印各层 shape 时可见 `bn1`、`bn2` 与卷积输出同形，因为它们都是逐通道仿射。
-
-`LeNet`（无 BN）曾是 v1 遗留模型，只在 Stage 2 / Stage 4 迁移期间供旧脚本导入；两个阶段迁移完成后已从 `model.py` 移除，副本见 `backup/v1/src/stage1_lenet/model.py`。
+可学习参数 61750 个（两个 BN 分别带来 bn1 的 12 个与 bn2 的 32 个参数）。打印各层 shape 时可见 `bn1`、`bn2` 与卷积输出同形，因为它们都是逐通道仿射。
 
 ## 3. BatchNorm 的两种语义与方案 B
 
@@ -85,7 +83,7 @@ running_var  = (1 - momentum) * running_var  + momentum * var(x)
 
 ### 4.1 文件头（L1-L5）
 
-- L1-L5 文档字符串：说明本文件的主模型是 `LeNetBN`，贯穿 Stage 1-4；v1 的无 BN `LeNet` 已在 Stage 4 迁移完成后移除。
+- L1-L5 文档字符串：说明本文件的主模型是 `LeNetBN`，贯穿 Stage 1-4。
 
 ### 4.2 LeNetBN（L11-L32）
 
@@ -286,4 +284,3 @@ PASS: test_acc=98.93% (>= 98%)
 
 - `artifacts/lenet_bn.pt`：训练好的 LeNet-BN 权重。
 - `artifacts/stage1_train_log.txt`：完整训练日志（含逐层 shape 与梯度范数）。
-- `artifacts/lenet.pt`：v1 遗留权重，已随无 BN LeNet 一起移入 `backup/v1/artifacts/`。

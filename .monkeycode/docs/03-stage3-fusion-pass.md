@@ -4,7 +4,7 @@
 
 具体做法是：在推理态下把 `BatchNorm2d` 的逐通道仿射变换折进前置 `Conv2d` 的权重与偏置，使图中 `Conv2d -> BatchNorm2d -> ReLU` 三个节点收敛为一个融合节点。折叠后 BN 从计算图中彻底消失，卷积直接输出等价结果，ReLU 作为尾随逐元素算子保留在融合模块内。
 
-被优化对象就是 Stage 1 的 LeNet-BN（`src/stage1_lenet/model.py`），它天然含两个 `Conv -> BN -> ReLU` 块；v2 不再单独维护 `ConvBNNet`。
+被优化对象就是 Stage 1 的 LeNet-BN（`src/stage1_lenet/model.py`），它天然含两个 `Conv -> BN -> ReLU` 块。
 
 ## 1. 验收标准
 
