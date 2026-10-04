@@ -1,0 +1,28 @@
+Conv+BN+ReLU 折叠 pass 验证
+============================================================
+输入 shape: (64, 1, 28, 28)
+
+折叠改写:
+  block1_conv + block1_bn + relu -> fused_conv_bn_relu_0
+  block2_conv + block2_bn + relu_1 -> fused_conv_bn_relu_1
+
+BatchNorm2d 模块数: 2 -> 0
+图节点数         : 11 -> 7
+最大绝对误差     : 1.192e-07
+
+原始模型 : median=5.661ms min=5.035ms max=17.143ms
+折叠模型 : median=4.591ms min=4.333ms max=5.588ms
+加速比(median): 1.23x
+
+折叠后 forward 代码:
+
+
+
+def forward(self, x):
+    fused_conv_bn_relu_0 = self.fused_conv_bn_relu_0(x);  x = None
+    fused_conv_bn_relu_1 = self.fused_conv_bn_relu_1(fused_conv_bn_relu_0);  fused_conv_bn_relu_0 = None
+    max_pool2d = torch.nn.functional.max_pool2d(fused_conv_bn_relu_1, 2, stride = None, padding = 0, dilation = 1, ceil_mode = False, return_indices = False);  fused_conv_bn_relu_1 = None
+    flatten = max_pool2d.flatten(1);  max_pool2d = None
+    fc = self.fc(flatten);  flatten = None
+    return fc
+    

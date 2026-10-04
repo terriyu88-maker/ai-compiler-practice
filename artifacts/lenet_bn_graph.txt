@@ -1,0 +1,301 @@
+========================================================================
+module 级图（默认 Tracer，nn.Module 作为叶子）
+========================================================================
+GraphModule forward 代码:
+
+
+
+def forward(self, x):
+    conv1 = self.conv1(x);  x = None
+    bn1 = self.bn1(conv1);  conv1 = None
+    relu = torch.nn.functional.relu(bn1, inplace = False);  bn1 = None
+    max_pool2d = torch.nn.functional.max_pool2d(relu, 2, stride = None, padding = 0, dilation = 1, ceil_mode = False, return_indices = False);  relu = None
+    conv2 = self.conv2(max_pool2d);  max_pool2d = None
+    bn2 = self.bn2(conv2);  conv2 = None
+    relu_1 = torch.nn.functional.relu(bn2, inplace = False);  bn2 = None
+    max_pool2d_1 = torch.nn.functional.max_pool2d(relu_1, 2, stride = None, padding = 0, dilation = 1, ceil_mode = False, return_indices = False);  relu_1 = None
+    flatten = max_pool2d_1.flatten(1);  max_pool2d_1 = None
+    fc1 = self.fc1(flatten);  flatten = None
+    relu_2 = torch.nn.functional.relu(fc1, inplace = False);  fc1 = None
+    fc2 = self.fc2(relu_2);  relu_2 = None
+    relu_3 = torch.nn.functional.relu(fc2, inplace = False);  fc2 = None
+    fc3 = self.fc3(relu_3);  relu_3 = None
+    return fc3
+    
+
+节点数=16 依赖边数=15
+算子直方图:
+  call_function    6
+  call_method      1
+  call_module      7
+  output           1
+  placeholder      1
+
+节点列表（拓扑序）:
+  #0   placeholder    x                target=x
+        args=()
+        users=['conv1']
+  #1   call_module    conv1            target=conv1
+        args=(x)
+        users=['bn1']
+  #2   call_module    bn1              target=bn1
+        args=(conv1)
+        users=['relu']
+  #3   call_function  relu             target=relu
+        args=(bn1)
+        users=['max_pool2d']
+  #4   call_function  max_pool2d       target=max_pool2d
+        args=(relu, 2)
+        users=['conv2']
+  #5   call_module    conv2            target=conv2
+        args=(max_pool2d)
+        users=['bn2']
+  #6   call_module    bn2              target=bn2
+        args=(conv2)
+        users=['relu_1']
+  #7   call_function  relu_1           target=relu
+        args=(bn2)
+        users=['max_pool2d_1']
+  #8   call_function  max_pool2d_1     target=max_pool2d
+        args=(relu_1, 2)
+        users=['flatten']
+  #9   call_method    flatten          target=flatten
+        args=(max_pool2d_1, 1)
+        users=['fc1']
+  #10  call_module    fc1              target=fc1
+        args=(flatten)
+        users=['relu_2']
+  #11  call_function  relu_2           target=relu
+        args=(fc1)
+        users=['fc2']
+  #12  call_module    fc2              target=fc2
+        args=(relu_2)
+        users=['relu_3']
+  #13  call_function  relu_3           target=relu
+        args=(fc2)
+        users=['fc3']
+  #14  call_module    fc3              target=fc3
+        args=(relu_3)
+        users=['output']
+  #15  output         output           target=output
+        args=(fc3)
+        users=[]
+
+依赖边 (producer -> consumer):
+  x -> conv1
+  conv1 -> bn1
+  bn1 -> relu
+  relu -> max_pool2d
+  max_pool2d -> conv2
+  conv2 -> bn2
+  bn2 -> relu_1
+  relu_1 -> max_pool2d_1
+  max_pool2d_1 -> flatten
+  flatten -> fc1
+  fc1 -> relu_2
+  relu_2 -> fc2
+  fc2 -> relu_3
+  relu_3 -> fc3
+  fc3 -> output
+
+候选融合模式 (Conv -> BN -> ReLU -> MaxPool):
+  (无：该粒度下看不到内部算子)
+
+========================================================================
+operator 级图（自定义 Tracer，穿透 nn.Module）
+========================================================================
+GraphModule forward 代码:
+
+
+
+def forward(self, x):
+    conv1_weight = self.conv1.weight
+    conv1_bias = self.conv1.bias
+    conv2d = torch.conv2d(x, conv1_weight, conv1_bias, (1, 1), (2, 2), (1, 1), 1);  x = conv1_weight = conv1_bias = None
+    bn1_weight = self.bn1.weight
+    bn1_bias = self.bn1.bias
+    bn1_running_mean = self.bn1.running_mean
+    bn1_running_var = self.bn1.running_var
+    batch_norm = torch.nn.functional.batch_norm(conv2d, bn1_running_mean, bn1_running_var, weight = bn1_weight, bias = bn1_bias, training = False, momentum = 0.1, eps = 1e-05);  conv2d = bn1_running_mean = bn1_running_var = bn1_weight = bn1_bias = None
+    relu = torch.nn.functional.relu(batch_norm, inplace = False);  batch_norm = None
+    max_pool2d = torch.nn.functional.max_pool2d(relu, 2, stride = None, padding = 0, dilation = 1, ceil_mode = False, return_indices = False);  relu = None
+    conv2_weight = self.conv2.weight
+    conv2_bias = self.conv2.bias
+    conv2d_1 = torch.conv2d(max_pool2d, conv2_weight, conv2_bias, (1, 1), (0, 0), (1, 1), 1);  max_pool2d = conv2_weight = conv2_bias = None
+    bn2_weight = self.bn2.weight
+    bn2_bias = self.bn2.bias
+    bn2_running_mean = self.bn2.running_mean
+    bn2_running_var = self.bn2.running_var
+    batch_norm_1 = torch.nn.functional.batch_norm(conv2d_1, bn2_running_mean, bn2_running_var, weight = bn2_weight, bias = bn2_bias, training = False, momentum = 0.1, eps = 1e-05);  conv2d_1 = bn2_running_mean = bn2_running_var = bn2_weight = bn2_bias = None
+    relu_1 = torch.nn.functional.relu(batch_norm_1, inplace = False);  batch_norm_1 = None
+    max_pool2d_1 = torch.nn.functional.max_pool2d(relu_1, 2, stride = None, padding = 0, dilation = 1, ceil_mode = False, return_indices = False);  relu_1 = None
+    flatten = max_pool2d_1.flatten(1);  max_pool2d_1 = None
+    fc1_weight = self.fc1.weight
+    fc1_bias = self.fc1.bias
+    linear = torch._C._nn.linear(flatten, fc1_weight, fc1_bias);  flatten = fc1_weight = fc1_bias = None
+    relu_2 = torch.nn.functional.relu(linear, inplace = False);  linear = None
+    fc2_weight = self.fc2.weight
+    fc2_bias = self.fc2.bias
+    linear_1 = torch._C._nn.linear(relu_2, fc2_weight, fc2_bias);  relu_2 = fc2_weight = fc2_bias = None
+    relu_3 = torch.nn.functional.relu(linear_1, inplace = False);  linear_1 = None
+    fc3_weight = self.fc3.weight
+    fc3_bias = self.fc3.bias
+    linear_2 = torch._C._nn.linear(relu_3, fc3_weight, fc3_bias);  relu_3 = fc3_weight = fc3_bias = None
+    return linear_2
+    
+
+节点数=34 依赖边数=33
+算子直方图:
+  call_function    13
+  call_method      1
+  get_attr         18
+  output           1
+  placeholder      1
+
+节点列表（拓扑序）:
+  #0   placeholder    x                target=x
+        args=()
+        users=['conv2d']
+  #1   get_attr       conv1_weight     target=conv1.weight
+        args=()
+        users=['conv2d']
+  #2   get_attr       conv1_bias       target=conv1.bias
+        args=()
+        users=['conv2d']
+  #3   call_function  conv2d           target=conv2d
+        args=(x, conv1_weight, conv1_bias, (1, 1), (2, 2), (1, 1), 1)
+        users=['batch_norm']
+  #4   get_attr       bn1_weight       target=bn1.weight
+        args=()
+        users=['batch_norm']
+  #5   get_attr       bn1_bias         target=bn1.bias
+        args=()
+        users=['batch_norm']
+  #6   get_attr       bn1_running_mean target=bn1.running_mean
+        args=()
+        users=['batch_norm']
+  #7   get_attr       bn1_running_var  target=bn1.running_var
+        args=()
+        users=['batch_norm']
+  #8   call_function  batch_norm       target=batch_norm
+        args=(conv2d, bn1_running_mean, bn1_running_var)
+        users=['relu']
+  #9   call_function  relu             target=relu
+        args=(batch_norm)
+        users=['max_pool2d']
+  #10  call_function  max_pool2d       target=max_pool2d
+        args=(relu, 2)
+        users=['conv2d_1']
+  #11  get_attr       conv2_weight     target=conv2.weight
+        args=()
+        users=['conv2d_1']
+  #12  get_attr       conv2_bias       target=conv2.bias
+        args=()
+        users=['conv2d_1']
+  #13  call_function  conv2d_1         target=conv2d
+        args=(max_pool2d, conv2_weight, conv2_bias, (1, 1), (0, 0), (1, 1), 1)
+        users=['batch_norm_1']
+  #14  get_attr       bn2_weight       target=bn2.weight
+        args=()
+        users=['batch_norm_1']
+  #15  get_attr       bn2_bias         target=bn2.bias
+        args=()
+        users=['batch_norm_1']
+  #16  get_attr       bn2_running_mean target=bn2.running_mean
+        args=()
+        users=['batch_norm_1']
+  #17  get_attr       bn2_running_var  target=bn2.running_var
+        args=()
+        users=['batch_norm_1']
+  #18  call_function  batch_norm_1     target=batch_norm
+        args=(conv2d_1, bn2_running_mean, bn2_running_var)
+        users=['relu_1']
+  #19  call_function  relu_1           target=relu
+        args=(batch_norm_1)
+        users=['max_pool2d_1']
+  #20  call_function  max_pool2d_1     target=max_pool2d
+        args=(relu_1, 2)
+        users=['flatten']
+  #21  call_method    flatten          target=flatten
+        args=(max_pool2d_1, 1)
+        users=['linear']
+  #22  get_attr       fc1_weight       target=fc1.weight
+        args=()
+        users=['linear']
+  #23  get_attr       fc1_bias         target=fc1.bias
+        args=()
+        users=['linear']
+  #24  call_function  linear           target=linear
+        args=(flatten, fc1_weight, fc1_bias)
+        users=['relu_2']
+  #25  call_function  relu_2           target=relu
+        args=(linear)
+        users=['linear_1']
+  #26  get_attr       fc2_weight       target=fc2.weight
+        args=()
+        users=['linear_1']
+  #27  get_attr       fc2_bias         target=fc2.bias
+        args=()
+        users=['linear_1']
+  #28  call_function  linear_1         target=linear
+        args=(relu_2, fc2_weight, fc2_bias)
+        users=['relu_3']
+  #29  call_function  relu_3           target=relu
+        args=(linear_1)
+        users=['linear_2']
+  #30  get_attr       fc3_weight       target=fc3.weight
+        args=()
+        users=['linear_2']
+  #31  get_attr       fc3_bias         target=fc3.bias
+        args=()
+        users=['linear_2']
+  #32  call_function  linear_2         target=linear
+        args=(relu_3, fc3_weight, fc3_bias)
+        users=['output']
+  #33  output         output           target=output
+        args=(linear_2)
+        users=[]
+
+依赖边 (producer -> consumer):
+  x -> conv2d
+  conv1_weight -> conv2d
+  conv1_bias -> conv2d
+  conv2d -> batch_norm
+  bn1_running_mean -> batch_norm
+  bn1_running_var -> batch_norm
+  bn1_weight -> batch_norm
+  bn1_bias -> batch_norm
+  batch_norm -> relu
+  relu -> max_pool2d
+  max_pool2d -> conv2d_1
+  conv2_weight -> conv2d_1
+  conv2_bias -> conv2d_1
+  conv2d_1 -> batch_norm_1
+  bn2_running_mean -> batch_norm_1
+  bn2_running_var -> batch_norm_1
+  bn2_weight -> batch_norm_1
+  bn2_bias -> batch_norm_1
+  batch_norm_1 -> relu_1
+  relu_1 -> max_pool2d_1
+  max_pool2d_1 -> flatten
+  flatten -> linear
+  fc1_weight -> linear
+  fc1_bias -> linear
+  linear -> relu_2
+  relu_2 -> linear_1
+  fc2_weight -> linear_1
+  fc2_bias -> linear_1
+  linear_1 -> relu_3
+  relu_3 -> linear_2
+  fc3_weight -> linear_2
+  fc3_bias -> linear_2
+  linear_2 -> output
+
+候选融合模式 (Conv -> BN -> ReLU -> MaxPool):
+  conv2d -> batch_norm -> relu -> max_pool2d
+  conv2d_1 -> batch_norm_1 -> relu_1 -> max_pool2d_1
+
+对比结论:
+  module 级节点数   = 16
+  operator 级节点数 = 34
+  operator 级比 module 级多出 18 个节点

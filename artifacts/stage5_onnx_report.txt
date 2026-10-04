@@ -1,0 +1,120 @@
+========================================================================
+ONNX 图结构（do_constant_folding=True）
+========================================================================
+IR version=8  producer=pytorch 2.14.0
+opset: domain=ai.onnx version=17
+
+图输入:
+  input    FLOAT[1, 1, 28, 28]
+图输出:
+  logits   FLOAT[1, 10]
+
+initializer（权重/常量，共 10 个）:
+  fc1.weight               shape=[120, 400] dtype=FLOAT
+  fc1.bias                 shape=[120] dtype=FLOAT
+  fc2.weight               shape=[84, 120] dtype=FLOAT
+  fc2.bias                 shape=[84] dtype=FLOAT
+  fc3.weight               shape=[10, 84] dtype=FLOAT
+  fc3.bias                 shape=[10] dtype=FLOAT
+  onnx::Conv_36            shape=[6, 1, 5, 5] dtype=FLOAT
+  onnx::Conv_37            shape=[6] dtype=FLOAT
+  onnx::Conv_39            shape=[16, 6, 5, 5] dtype=FLOAT
+  onnx::Conv_40            shape=[16] dtype=FLOAT
+initializer 元素总数 = 61706
+
+节点直方图:
+  Conv                 2
+  Flatten              1
+  Gemm                 3
+  MaxPool              2
+  Relu                 4
+
+节点列表（拓扑序）:
+  #0   Conv                 name=/conv1/Conv      input, onnx::Conv_36, onnx::Conv_37 -> /conv1/Conv_output_0
+        dilations = [1, 1]
+        group = 1
+        kernel_shape = [5, 5]
+        pads = [2, 2, 2, 2]
+        strides = [1, 1]
+  #1   Relu                 name=/Relu            /conv1/Conv_output_0 -> /Relu_output_0
+  #2   MaxPool              name=/MaxPool         /Relu_output_0 -> /MaxPool_output_0
+        ceil_mode = 0
+        dilations = [1, 1]
+        kernel_shape = [2, 2]
+        pads = [0, 0, 0, 0]
+        strides = [2, 2]
+  #3   Conv                 name=/conv2/Conv      /MaxPool_output_0, onnx::Conv_39, onnx::Conv_40 -> /conv2/Conv_output_0
+        dilations = [1, 1]
+        group = 1
+        kernel_shape = [5, 5]
+        pads = [0, 0, 0, 0]
+        strides = [1, 1]
+  #4   Relu                 name=/Relu_1          /conv2/Conv_output_0 -> /Relu_1_output_0
+  #5   MaxPool              name=/MaxPool_1       /Relu_1_output_0 -> /MaxPool_1_output_0
+        ceil_mode = 0
+        dilations = [1, 1]
+        kernel_shape = [2, 2]
+        pads = [0, 0, 0, 0]
+        strides = [2, 2]
+  #6   Flatten              name=/Flatten         /MaxPool_1_output_0 -> /Flatten_output_0
+        axis = 1
+  #7   Gemm                 name=/fc1/Gemm        /Flatten_output_0, fc1.weight, fc1.bias -> /fc1/Gemm_output_0
+        alpha = 1.0
+        beta = 1.0
+        transB = 1
+  #8   Relu                 name=/Relu_2          /fc1/Gemm_output_0 -> /Relu_2_output_0
+  #9   Gemm                 name=/fc2/Gemm        /Relu_2_output_0, fc2.weight, fc2.bias -> /fc2/Gemm_output_0
+        alpha = 1.0
+        beta = 1.0
+        transB = 1
+  #10  Relu                 name=/Relu_3          /fc2/Gemm_output_0 -> /Relu_3_output_0
+  #11  Gemm                 name=/fc3/Gemm        /Relu_3_output_0, fc3.weight, fc3.bias -> logits
+        alpha = 1.0
+        beta = 1.0
+        transB = 1
+
+========================================================================
+fx GraphModule 与两种 ONNX 变体的抽象层次对照
+========================================================================
+fx module 级节点序列（含预期 ONNX 算子）:
+  x            -> placeholder
+  conv1        -> Conv
+  bn1          -> BatchNormalization
+  relu         -> Relu
+  max_pool2d   -> MaxPool
+  conv2        -> Conv
+  bn2          -> BatchNormalization
+  relu_1       -> Relu
+  max_pool2d_1 -> MaxPool
+  flatten      -> Flatten
+  fc1          -> Gemm
+  relu_2       -> Relu
+  fc2          -> Gemm
+  relu_3       -> Relu
+  fc3          -> Gemm
+  output       -> output
+
+算子数量对照（fx / ONNX 折叠 / ONNX 不折叠）:
+  BatchNormalization   fx=2   folded=0   nofold=2
+  Conv                 fx=2   folded=2   nofold=2
+  Flatten              fx=1   folded=1   nofold=1
+  Gemm                 fx=3   folded=3   nofold=3
+  MaxPool              fx=2   folded=2   nofold=2
+  Relu                 fx=4   folded=4   nofold=4
+
+节点总数: fx(计算节点)=14  onnx folded=12  onnx nofold=14
+
+========================================================================
+数值对齐 (PyTorch eager vs ONNX ReferenceEvaluator)
+========================================================================
+折叠版:
+  shape torch=(4, 10) onnx=(4, 10)  max abs err = 4.292e-06
+不折叠版:
+  shape torch=(4, 10) onnx=(4, 10)  max abs err = 1.431e-06
+
+结论:
+  1. fx module 级保留 Conv/BN/Linear 为 call_module 叶子，权重藏在子模块里；
+     ONNX 把权重显式提成 initializer，运算节点换成后端标准算子。
+  2. do_constant_folding=True 时，导出器自动把推理态 BN 折进卷积权重与偏置：
+     BatchNormalization 节点消失（14 -> 12），与 Stage 3 手写折叠是同一套代数。
+  3. 关闭常量折叠后，BN 作为独立 BatchNormalization 节点保留，14 个计算节点与 fx 完全对应。

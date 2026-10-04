@@ -1,0 +1,38 @@
+graph main_graph (
+  %input[FLOAT, 1x1x28x28]
+) initializers (
+  %conv1.weight[FLOAT, 6x1x5x5]
+  %conv1.bias[FLOAT, 6]
+  %bn1.weight[FLOAT, 6]
+  %bn1.bias[FLOAT, 6]
+  %bn1.running_mean[FLOAT, 6]
+  %bn1.running_var[FLOAT, 6]
+  %conv2.weight[FLOAT, 16x6x5x5]
+  %conv2.bias[FLOAT, 16]
+  %bn2.weight[FLOAT, 16]
+  %bn2.bias[FLOAT, 16]
+  %bn2.running_mean[FLOAT, 16]
+  %bn2.running_var[FLOAT, 16]
+  %fc1.weight[FLOAT, 120x400]
+  %fc1.bias[FLOAT, 120]
+  %fc2.weight[FLOAT, 84x120]
+  %fc2.bias[FLOAT, 84]
+  %fc3.weight[FLOAT, 10x84]
+  %fc3.bias[FLOAT, 10]
+) {
+  %/conv1/Conv_output_0 = Conv[dilations = [1, 1], group = 1, kernel_shape = [5, 5], pads = [2, 2, 2, 2], strides = [1, 1]](%input, %conv1.weight, %conv1.bias)
+  %/bn1/BatchNormalization_output_0 = BatchNormalization[epsilon = 9.99999974737875e-06, momentum = 0.899999976158142, training_mode = 0](%/conv1/Conv_output_0, %bn1.weight, %bn1.bias, %bn1.running_mean, %bn1.running_var)
+  %/Relu_output_0 = Relu(%/bn1/BatchNormalization_output_0)
+  %/MaxPool_output_0 = MaxPool[ceil_mode = 0, dilations = [1, 1], kernel_shape = [2, 2], pads = [0, 0, 0, 0], strides = [2, 2]](%/Relu_output_0)
+  %/conv2/Conv_output_0 = Conv[dilations = [1, 1], group = 1, kernel_shape = [5, 5], pads = [0, 0, 0, 0], strides = [1, 1]](%/MaxPool_output_0, %conv2.weight, %conv2.bias)
+  %/bn2/BatchNormalization_output_0 = BatchNormalization[epsilon = 9.99999974737875e-06, momentum = 0.899999976158142, training_mode = 0](%/conv2/Conv_output_0, %bn2.weight, %bn2.bias, %bn2.running_mean, %bn2.running_var)
+  %/Relu_1_output_0 = Relu(%/bn2/BatchNormalization_output_0)
+  %/MaxPool_1_output_0 = MaxPool[ceil_mode = 0, dilations = [1, 1], kernel_shape = [2, 2], pads = [0, 0, 0, 0], strides = [2, 2]](%/Relu_1_output_0)
+  %/Flatten_output_0 = Flatten[axis = 1](%/MaxPool_1_output_0)
+  %/fc1/Gemm_output_0 = Gemm[alpha = 1, beta = 1, transB = 1](%/Flatten_output_0, %fc1.weight, %fc1.bias)
+  %/Relu_2_output_0 = Relu(%/fc1/Gemm_output_0)
+  %/fc2/Gemm_output_0 = Gemm[alpha = 1, beta = 1, transB = 1](%/Relu_2_output_0, %fc2.weight, %fc2.bias)
+  %/Relu_3_output_0 = Relu(%/fc2/Gemm_output_0)
+  %logits = Gemm[alpha = 1, beta = 1, transB = 1](%/Relu_3_output_0, %fc3.weight, %fc3.bias)
+  return %logits
+}

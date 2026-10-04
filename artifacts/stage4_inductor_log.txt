@@ -1,0 +1,14 @@
+eager   : median=1.883ms min=1.852ms max=2.136ms
+compiling (first call triggers codegen) ...
+compile wall time: 46.5s, max abs err vs eager: 0.000e+00
+compiled: median=0.935ms min=0.908ms max=1.018ms
+speedup (median): 2.01x
+
+generated code -> /workspace/artifacts/inductor_generated_code.py
+source debug   -> /tmp/torch_compile_debug/run_2026_10_02_11_55_30_213303-pid_30958/torchinductor/model__0_inference_0.0/output_code.py
+generated lines: 426
+defined kernels (4):
+  cpp_fused__native_batch_norm_legit_no_training_convolution_max_pool2d_with_indices_relu_0
+  cpp_fused__native_batch_norm_legit_no_training_max_pool2d_with_indices_relu_1
+  cpp_fused_relu_2
+  cpp_fused_relu_3

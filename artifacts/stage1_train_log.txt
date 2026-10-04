@@ -1,0 +1,32 @@
+device=cpu epochs=5 batch_size=64 lr=0.001
+params=61750
+逐层输出 shape:
+  conv1    -> (64, 6, 28, 28)
+  bn1      -> (64, 6, 28, 28)
+  conv2    -> (64, 16, 10, 10)
+  bn2      -> (64, 16, 10, 10)
+  fc1      -> (64, 120)
+  fc2      -> (64, 84)
+  fc3      -> (64, 10)
+首个 batch 的逐层梯度 L2 范数:
+  conv1.weight   L2=0.117070
+  conv1.bias     L2=0.000001
+  bn1.weight     L2=0.010327
+  bn1.bias       L2=0.007534
+  conv2.weight   L2=0.283927
+  conv2.bias     L2=0.000000
+  bn2.weight     L2=0.017603
+  bn2.bias       L2=0.011259
+  fc1.weight     L2=0.487466
+  fc1.bias       L2=0.022696
+  fc2.weight     L2=0.252672
+  fc2.bias       L2=0.050207
+  fc3.weight     L2=0.190135
+  fc3.bias       L2=0.086034
+epoch 1/5 train_loss=0.1760 test_loss=0.0617 test_acc=97.94% time=10.9s
+epoch 2/5 train_loss=0.0573 test_loss=0.0450 test_acc=98.56% time=10.0s
+epoch 3/5 train_loss=0.0414 test_loss=0.0332 test_acc=98.96% time=10.0s
+epoch 4/5 train_loss=0.0344 test_loss=0.0425 test_acc=98.68% time=10.0s
+epoch 5/5 train_loss=0.0286 test_loss=0.0376 test_acc=98.93% time=10.3s
+saved /workspace/artifacts/lenet_bn.pt
+PASS: test_acc=98.93% (>= 98%)
