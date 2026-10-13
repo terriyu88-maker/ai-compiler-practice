@@ -117,36 +117,39 @@ Stage 1 训练日志里 `conv1.bias` / `conv2.bias` 梯度约为 0，正是同�
 
 ## 4. src/stage3_pass/verify.py 逐行说明
 
-代码位置：`src/stage3_pass/verify.py`（共 111 行）
+代码位置：`src/stage3_pass/verify.py`（共 131 行）
 
-### 4.1 导入与工具（L1-L40）
+可视化（可选）：加 `--draw-svg` 后，脚本把折叠前/后的图各导出一张 Graphviz SVG，见第 5 节与 `src/common/graph_draw.py`。
+
+### 4.1 导入与工具（L1-L41）
 
 - L1-L5 文档字符串：声明验证目标与「在 LeNet-BN 上运行」。
 - L7-L12 导入：`argparse`、`Path`、`torch`、`fx`、`nn`。
-- L14-L17 导入公共种子工具、计时器、LeNet-BN 与 pass。
-- L19-L20 `ROOT` / `ARTIFACTS`：仓库根与产物目录。
-- L23-L24 `@torch.no_grad()` + `randomize_bn_stats(model)`：随机化所有 BN 的统计与仿射参数。默认的 `running_mean=0`、`running_var=1` 会让 BN 近似恒等，折叠几乎不改变权重，验证会变成「永远通过」。
-- L30-L35：`weight` 取 `1.0 ± 0.2`，`bias` 取 `N(0, 0.2)`，`running_mean` 取 `N(0, 0.5)`，`running_var` 取 `0.5 ~ 2.0`（恒正）。
-- L39-L40 `count_modules(model, cls)`：统计某类模块数量，用于对比 BN 是否消除。
+- L14-L18 导入公共工具与待测对象：`draw_graph`（可选可视化）、`set_seed`、`benchmark`、`LeNetBN`、`fuse_conv_bn_relu`。
+- L20-L21 `ROOT` / `ARTIFACTS`：仓库根与产物目录。
+- L24-L25 `@torch.no_grad()` + `randomize_bn_stats(model)`：随机化所有 BN 的统计与仿射参数。默认的 `running_mean=0`、`running_var=1` 会让 BN 近似恒等，折叠几乎不改变权重，验证会变成「永远通过」。
+- L34-L37：`weight` 取 `1.0 ± 0.2`，`bias` 取 `N(0, 0.2)`，`running_mean` 取 `N(0, 0.5)`，`running_var` 取 `0.5 ~ 2.0`（恒正）。
+- L40-L41 `count_modules(model, cls)`：统计某类模块数量，用于对比 BN 是否消除。
 
-### 4.2 主流程 main（L43-L111）
+### 4.2 主流程 main（L44-L131）
 
-- L44-L48 参数：`--batch-size`、`--iters`、`--report` 输出路径。
-- L50-L52：固定种子、建产物目录、准备日志缓冲。
-- L54-L56 `log`：同时打印与收集。
-- L58 `model = LeNetBN().eval()`：`.eval()` 是折叠成立的前提，BN 必须走 running 统计。
-- L59-L60：随机化 BN、构造输入。
-- L62-L63 记录折叠前的参考输出 `reference`。
-- L65 `gm = fx.symbolic_trace(model)`：把模型捕获为 module 级 GraphModule。
-- L66 `gm.eval()`：显式把 GraphModule 设为推理态（GraphModule 默认 training=True，必须切换）。
-- L67-L69：保存改写前的 forward 代码、节点数、BN 数。
-- L71 `rewritten = fuse_conv_bn_relu(gm)`：执行折叠 pass，`gm` 被就地改写。
-- L72-L74：记录改写后的代码、节点数、BN 数。
-- L76-L78 计算 `fused_out` 与 `reference` 的最大绝对误差。
-- L80-L82 在 `no_grad` 下分别对原始模型与折叠模型计时。
-- L84-L102 输出报告：改写说明、BN 数变化、节点数变化、误差、延迟与加速比、折叠后 forward 代码。
-- L98 `speedup = eager.median_ms / fused.median_ms`：用中位数计算，分母为 0 时回退为 NaN。
-- L104-L107：写报告，把改写前后的 forward 代码分别落盘。
+- L45-L54 参数：`--batch-size`、`--iters`、`--report` 输出路径、`--draw-svg`（是否额外出图）。
+- L56-L58：固定种子、建产物目录、准备日志缓冲。
+- L60-L62 `log`：同时打印与收集。
+- L64-L66 `model = LeNetBN().eval()`：`.eval()` 是折叠成立的前提，BN 必须走 running 统计；随后随机化 BN、构造输入。
+- L68-L69 记录折叠前的参考输出 `reference`。
+- L71 `gm = fx.symbolic_trace(model)`：把模型捕获为 module 级 GraphModule。
+- L72 `gm.eval()`：显式把 GraphModule 设为推理态（GraphModule 默认 training=True，必须切换）。
+- L73-L75：保存改写前的 forward 代码、节点数、BN 数。
+- L76-L82 `--draw-svg` 时导出折叠前的图 `stage3_model_before.svg`。
+- L84 `rewritten = fuse_conv_bn_relu(gm)`：执行折叠 pass，`gm` 被就地改写。
+- L85-L87：记录改写后的代码、节点数、BN 数。
+- L88-L94 `--draw-svg` 时导出折叠后的图 `stage3_model_after.svg`。
+- L96-L98 计算 `fused_out` 与 `reference` 的最大绝对误差。
+- L100-L102 在 `no_grad` 下分别对原始模型与折叠模型计时。
+- L104-L122 输出报告：改写说明、BN 数变化、节点数变化、误差、延迟与加速比、折叠后 forward 代码。
+- L118 `speedup = eager.median_ms / fused.median_ms`：用中位数计算，分母为 0 时回退为 NaN。
+- L124-L127：写报告，把改写前后的 forward 代码分别落盘。
 
 ## 5. 运行结果
 
@@ -154,6 +157,12 @@ Stage 1 训练日志里 `conv1.bias` / `conv2.bias` 梯度约为 0，正是同�
 
 ```bash
 python3 -m src.stage3_pass.verify
+```
+
+需要出图时加 `--draw-svg`，会额外导出折叠前/后的对比图：
+
+```bash
+python3 -m src.stage3_pass.verify --draw-svg
 ```
 
 ```
@@ -222,3 +231,5 @@ Stage 4 会观察到 Inductor 把 `convolution` 当作 `extern_kernels` 直接�
 - `artifacts/stage3_fusion_report.txt`：完整的验证报告。
 - `artifacts/stage3_model_before.py`：折叠前的 GraphModule forward 代码。
 - `artifacts/stage3_model_after.py`：折叠后的 GraphModule forward 代码。
+- `artifacts/stage3_model_before.svg`：折叠前的图（`--draw-svg` 生成）。
+- `artifacts/stage3_model_after.svg`：折叠后的图（`--draw-svg` 生成）。

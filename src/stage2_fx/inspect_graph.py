@@ -16,6 +16,7 @@ from typing import Any
 import torch.fx as fx
 from torch.nn.modules.batchnorm import BatchNorm1d, BatchNorm2d, BatchNorm3d
 
+from src.common.graph_draw import draw_graph
 from src.common.seed import set_seed
 from src.stage1_lenet.model import LeNetBN
 
@@ -148,6 +149,11 @@ def describe(title: str, gm: fx.GraphModule, log) -> str:
 def main():
     parser = argparse.ArgumentParser(description="Inspect LeNet-BN as a torch.fx graph")
     parser.add_argument("--out", type=Path, default=ARTIFACTS / "lenet_bn_graph.txt")
+    parser.add_argument(
+        "--draw-svg",
+        action="store_true",
+        help="额外导出 Graphviz SVG（需 pydot + graphviz 的 dot，缺失时自动跳过）",
+    )
     args = parser.parse_args()
 
     set_seed()
@@ -165,6 +171,23 @@ def main():
 
     module_code = describe("module 级图（默认 Tracer，nn.Module 作为叶子）", module_gm, log)
     expanded_code = describe("operator 级图（自定义 Tracer，穿透 nn.Module）", expanded_gm, log)
+
+    if args.draw_svg:
+        log("导出 Graphviz SVG 图:")
+        draw_graph(
+            module_gm,
+            ARTIFACTS / "lenet_bn_module_level.svg",
+            name="lenet_bn_module_level",
+            log=log,
+        )
+        draw_graph(
+            expanded_gm,
+            ARTIFACTS / "lenet_bn_operator_level.svg",
+            name="lenet_bn_operator_level",
+            ignore_getattr=True,
+            log=log,
+        )
+        log("")
 
     log("对比结论:")
     log(f"  module 级节点数   = {len(list(module_gm.graph.nodes))}")

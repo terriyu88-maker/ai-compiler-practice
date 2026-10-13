@@ -11,6 +11,7 @@ import torch
 import torch.fx as fx
 from torch import nn
 
+from src.common.graph_draw import draw_graph
 from src.common.seed import set_seed
 from src.common.timer import benchmark
 from src.stage1_lenet.model import LeNetBN
@@ -45,6 +46,11 @@ def main():
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--iters", type=int, default=50)
     parser.add_argument("--report", type=Path, default=ARTIFACTS / "stage3_fusion_report.txt")
+    parser.add_argument(
+        "--draw-svg",
+        action="store_true",
+        help="额外导出折叠前/后的 Graphviz SVG（需 pydot + graphviz 的 dot）",
+    )
     args = parser.parse_args()
 
     set_seed()
@@ -67,11 +73,25 @@ def main():
     before_code = gm.code
     before_nodes = len(list(gm.graph.nodes))
     before_bn = count_modules(gm, nn.BatchNorm2d)
+    if args.draw_svg:
+        draw_graph(
+            gm,
+            ARTIFACTS / "stage3_model_before.svg",
+            name="stage3_model_before",
+            log=log,
+        )
 
     rewritten = fuse_conv_bn_relu(gm)
     after_code = gm.code
     after_nodes = len(list(gm.graph.nodes))
     after_bn = count_modules(gm, nn.BatchNorm2d)
+    if args.draw_svg:
+        draw_graph(
+            gm,
+            ARTIFACTS / "stage3_model_after.svg",
+            name="stage3_model_after",
+            log=log,
+        )
 
     with torch.no_grad():
         fused_out = gm(x)

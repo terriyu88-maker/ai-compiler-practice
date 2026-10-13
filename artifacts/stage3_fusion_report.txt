@@ -10,9 +10,9 @@ BatchNorm2d 模块数: 2 -> 0
 图节点数         : 16 -> 12
 最大绝对误差     : 9.686e-08
 
-原始模型 : median=2.381ms min=2.102ms max=4.422ms
-折叠模型 : median=2.113ms min=1.869ms max=6.142ms
-加速比(median): 1.13x
+原始模型 : median=1.955ms min=1.872ms max=3.845ms
+折叠模型 : median=1.792ms min=1.759ms max=1.927ms
+加速比(median): 1.09x
 
 折叠后 forward 代码:
 
