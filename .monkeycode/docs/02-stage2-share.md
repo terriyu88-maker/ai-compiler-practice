@@ -50,7 +50,7 @@ Stage 2 具体干两件事：
 
 关键在一个开关：`Tracer.is_leaf_module`，它决定「遇到一个子模块时，是记一个节点就跳过，还是走进去继续追」。
 
-**粗粒度（模块级）**——用默认 Tracer（`inspect_graph.py:169`）：
+**粗粒度（模块级）**——用默认 Tracer（`inspect_graph.py:174`）：
 
 ```python
 module_gm = fx.symbolic_trace(model)
@@ -58,7 +58,7 @@ module_gm = fx.symbolic_trace(model)
 
 默认规则对 `torch.nn` 下的模块返回「是叶子」，于是 `self.conv1(x)` 只记成一个 `call_module` 节点（target=`conv1`），不进入 `Conv2d.forward` 内部。`bn1`、`fc1` 同理。得到 **16 个节点、15 条边**。
 
-**细粒度（算子级）**——用自定义 Tracer（`inspect_graph.py:49-53`, `:170`）：
+**细粒度（算子级）**——用自定义 Tracer（`inspect_graph.py:49-53`, `:175`）：
 
 ```python
 class FunctionalTracer(fx.Tracer):
@@ -125,7 +125,7 @@ conv2d_1 -> batch_norm_1 -> relu_1 -> max_pool2d_1
 | `artifacts/lenet_bn_graphmodule_module_level.py` | 模块级图的等价 `forward` 代码 |
 | `artifacts/lenet_bn_graphmodule_operator_level.py` | 算子级图的等价 `forward` 代码 |
 
-补充：脚本支持 `--draw-svg`（默认关闭），会额外导出 `artifacts/lenet_bn_module_level.svg` 与 `artifacts/lenet_bn_operator_level.svg`，把一粗一细两张图直接画出来，最直观地展示「模块是黑盒方框、算子级全部展开」的差别。该功能依赖 `pydot` 与系统 `graphviz`，缺失时自动跳过，不影响主流程。
+补充：脚本支持 `--draw-svg`（默认关闭），会额外导出 `artifacts/lenet_bn_module_level.svg` 与 `artifacts/lenet_bn_operator_level.svg`，把一粗一细两张图直接画出来，最直观地展示「模块是黑盒方框、算子级全部展开」的差别。operator 级默认隐藏常量节点以保可读；想看权重、BN 统计这些 `get_attr` 常量节点时，再加 `--draw-getattr`，会多导出完整版 `artifacts/lenet_bn_operator_level_full.svg`。该功能依赖 `pydot` 与系统 `graphviz`，缺失时自动跳过，不影响主流程。
 
 关键数字：模块级 **16 节点 / 15 边**，算子级 **34 节点 / 33 边**，找到 **2 条** `Conv→BN→ReLU→MaxPool` 候选链。
 

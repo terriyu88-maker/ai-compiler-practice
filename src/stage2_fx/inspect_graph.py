@@ -154,6 +154,11 @@ def main():
         action="store_true",
         help="额外导出 Graphviz SVG（需 pydot + graphviz 的 dot，缺失时自动跳过）",
     )
+    parser.add_argument(
+        "--draw-getattr",
+        action="store_true",
+        help="配合 --draw-svg：额外导出一张保留 get_attr 常量节点的 operator 级图",
+    )
     args = parser.parse_args()
 
     set_seed()
@@ -187,6 +192,14 @@ def main():
             ignore_getattr=True,
             log=log,
         )
+        if args.draw_getattr:
+            draw_graph(
+                expanded_gm,
+                ARTIFACTS / "lenet_bn_operator_level_full.svg",
+                name="lenet_bn_operator_level_full",
+                ignore_getattr=False,
+                log=log,
+            )
         log("")
 
     log("对比结论:")

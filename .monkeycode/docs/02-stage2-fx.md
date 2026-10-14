@@ -33,9 +33,9 @@ torch.fx.proxy.TraceError: symbolically traced variables cannot be used as input
 
 ## 4. src/stage2_fx/inspect_graph.py 逐行说明
 
-代码位置：`src/stage2_fx/inspect_graph.py`（共 205 行）
+代码位置：`src/stage2_fx/inspect_graph.py`（共 218 行）
 
-可视化（可选）：加 `--draw-svg` 后，脚本把两张图分别导出为 Graphviz SVG，见第 5.5 节与 `src/common/graph_draw.py`。
+可视化（可选）：加 `--draw-svg` 后，脚本把两张图分别导出为 Graphviz SVG；再加 `--draw-getattr` 会多导出一张保留常量节点的 operator 级图，见第 5.5 节与 `src/common/graph_draw.py`。
 
 ### 4.1 文件头与导入（L1-L27）
 
@@ -114,18 +114,18 @@ torch.fx.proxy.TraceError: symbolically traced variables cannot be used as input
 - L138-L144：打印候选融合，若无则提示该粒度下看不到内部算子。
 - L146 `return gm.code`。
 
-### 4.8 主流程 main（L149-L203）
+### 4.8 主流程 main（L149-L218）
 
-- L150-L157：命令行参数 `--out`（默认 `artifacts/lenet_bn_graph.txt`）与 `--draw-svg`（是否额外导出 SVG）。
-- L159-L161：设置种子、实例化 LeNet-BN、切评估模式（BN 用 running 统计，图与训练无关）。
-- L163-L167：`log` 闭包，同时打印并收集到 `lines`。
-- L169 `module_gm = fx.symbolic_trace(model)`：默认 Tracer 抓图，得到 module 级图。
-- L170 `expanded_gm = fx.GraphModule(model, FunctionalTracer().trace(model))`：自定义 Tracer 抓图得到 operator 级 `Graph`，再包成 `GraphModule`。传 `model` 是为了让 `get_attr` 能解析到真实权重与 BN 统计。
-- L172-L173：分别输出两张图的报告并保留 forward 代码。
-- L175-L190：`--draw-svg` 打开时，把 module 级图与 operator 级图（置 `ignore_getattr=True` 降噪）分别导出为 `lenet_bn_module_level.svg`、`lenet_bn_operator_level.svg`；缺依赖时 `draw_graph` 打印提示并跳过。
-- L192-L195：打印节点数对比。
-- L197-L201：把完整报告写入 `lenet_bn_graph.txt`，两份 forward 代码分别写入 `lenet_bn_graphmodule_module_level.py` 与 `lenet_bn_graphmodule_operator_level.py`。
-- L202 `print(f"saved {args.out}")`。
+- L150-L162：命令行参数 `--out`（默认 `artifacts/lenet_bn_graph.txt`）、`--draw-svg`（是否额外导出 SVG）、`--draw-getattr`（配合 `--draw-svg`，额外导出一张保留 `get_attr` 常量节点的 operator 级图）。
+- L164-L166：设置种子、实例化 LeNet-BN、切评估模式（BN 用 running 统计，图与训练无关）。
+- L168-L172：`log` 闭包，同时打印并收集到 `lines`。
+- L174 `module_gm = fx.symbolic_trace(model)`：默认 Tracer 抓图，得到 module 级图。
+- L175 `expanded_gm = fx.GraphModule(model, FunctionalTracer().trace(model))`：自定义 Tracer 抓图得到 operator 级 `Graph`，再包成 `GraphModule`。传 `model` 是为了让 `get_attr` 能解析到真实权重与 BN 统计。
+- L177-L178：分别输出两张图的报告并保留 forward 代码。
+- L180-L203：`--draw-svg` 打开时导出图。module 级导出为 `lenet_bn_module_level.svg`；operator 级默认导出为 `lenet_bn_operator_level.svg`（置 `ignore_getattr=True` 降噪，隐藏 18 个常量节点）；再加 `--draw-getattr` 时，额外导出 `lenet_bn_operator_level_full.svg`（`ignore_getattr=False`，保留全部 `get_attr` 常量节点）。缺依赖时 `draw_graph` 打印提示并跳过。
+- L205-L208：打印节点数对比。
+- L210-L213：把完整报告写入 `lenet_bn_graph.txt`，两份 forward 代码分别写入 `lenet_bn_graphmodule_module_level.py` 与 `lenet_bn_graphmodule_operator_level.py`。
+- L214 `print(f"saved {args.out}")`。
 
 ## 5. 运行结果
 
@@ -221,18 +221,19 @@ conv2d_1 -> batch_norm_1 -> relu_1 -> max_pool2d_1
 
 ### 5.5 Graphviz 可视化（`--draw-svg`）
 
-`--draw-svg` 会额外导出两张 SVG，直观对比两种粒度：
+`--draw-svg` 会额外导出两张 SVG，直观对比两种粒度；再加 `--draw-getattr` 会多导出一张保留全部常量节点的 operator 级图：
 
 | 产物 | 内容 | 说明 |
 |------|------|------|
 | `artifacts/lenet_bn_module_level.svg` | module 级图 | 16 个节点，`conv1`/`bn1` 等是黑盒方框 |
-| `artifacts/lenet_bn_operator_level.svg` | operator 级图 | 34 个节点，`conv2d`/`batch_norm`/`relu` 全部展开 |
+| `artifacts/lenet_bn_operator_level.svg` | operator 级图（降噪） | 置 `ignore_getattr=True`，隐藏 18 个常量节点，只看数据流主线 |
+| `artifacts/lenet_bn_operator_level_full.svg` | operator 级图（完整） | 加 `--draw-getattr` 生成，`ignore_getattr=False`，18 个 `get_attr` 常量节点全部显示 |
 
 实现放在 `src/common/graph_draw.py`，核心是 `torch.fx.passes.graph_drawer.FxGraphDrawer`：
 
 - `is_available()`：同时检查 `pydot` 是否可导入、系统是否有 `dot` 可执行文件。
 - `draw_graph(gm, path, name=..., ignore_getattr=False, ...)`：用 `FxGraphDrawer` 生成 DOT 再写 SVG，失败时打印提示并返回 `False`，不会中断主流程。
-- operator 级图节点多、`get_attr` 密集，导出时置 `ignore_getattr=True` 隐藏常量节点以保持可读。
+- operator 级图节点多、`get_attr` 密集：默认导出置 `ignore_getattr=True` 保持可读；需要看权重/BN 统计等常量节点时，用 `--draw-getattr` 导出完整版。
 
 导出为可选项（默认关闭），因此即使环境没有 `pydot`/`graphviz`，`inspect_graph` 仍可正常运行。
 
@@ -300,7 +301,8 @@ def test_fusion_candidates_count():
 | `artifacts/lenet_bn_graphmodule_module_level.py` | module 级 GraphModule 的 forward 代码 |
 | `artifacts/lenet_bn_graphmodule_operator_level.py` | operator 级 GraphModule 的 forward 代码 |
 | `artifacts/lenet_bn_module_level.svg` | module 级图（`--draw-svg` 生成） |
-| `artifacts/lenet_bn_operator_level.svg` | operator 级图（`--draw-svg` 生成） |
+| `artifacts/lenet_bn_operator_level.svg` | operator 级图（`--draw-svg` 生成，隐藏常量节点） |
+| `artifacts/lenet_bn_operator_level_full.svg` | operator 级完整图（`--draw-svg --draw-getattr` 生成，保留 `get_attr`） |
 
 ## 9. 与上下阶段的衔接
 
