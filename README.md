@@ -49,7 +49,7 @@ LeNet-BN 的拓扑与经典 LeNet 一致，只是两个卷积后各多一个 BN�
 
 | 主线步骤 | 对应阶段 | 在这个模型上做什么 |
 |----------|----------|--------------------|
-| 图捕获 | Stage 2 | `symbolic_trace(LeNet-BN)`，print 节点、边、直方图 |
+| 图捕获 | Stage 2 | `symbolic_trace(LeNet-BN)`，print 节点、边、直方图，可选导出 Graphviz SVG |
 | 图变换 | Stage 3 | 手写 pass，把 2 个 `Conv-BN-ReLU` 折成 2 个节点并验证等价 |
 | 降级 | Stage 4 | `torch.compile`，导出 Inductor 生成的算子代码并分析融合 |
 | 代码生成 / IR 桥接 | Stage 5 | 导出 ONNX，与 fx GraphModule 逐层对照 |
@@ -76,20 +76,20 @@ Stage 0 与 Stage 1 是进入这条主线的前置：环境准备与模型本身
 - 状态：**已完成**。test_acc=98.93%，手写前向误差 7.451e-08、梯度误差 3.353e-08（覆盖 14 组参数），参数量 61750，产物 `artifacts/lenet_bn.pt`、`artifacts/stage1_train_log.txt`。
 
 ### Stage 2 torch.fx 图捕获
-- 内容：`symbolic_trace(LeNet-BN)`；打印节点列表（op / target / args / users）；重建拓扑序依赖边；统计算子直方图；导出 GraphModule 的 Python 代码；标出 `Conv-BN-ReLU` 候选链。
-- 交付：`src/stage2_fx/inspect_graph.py`、`artifacts/lenet_bn_graph.txt`。
+- 内容：`symbolic_trace(LeNet-BN)`；打印节点列表（op / target / args / users）；重建拓扑序依赖边；统计算子直方图；导出 GraphModule 的 Python 代码；标出 `Conv-BN-ReLU` 候选链；可选导出 Graphviz SVG（module 级、operator 级降噪版、operator 级完整版）。
+- 交付：`src/stage2_fx/inspect_graph.py`、`src/common/graph_draw.py`、`artifacts/lenet_bn_graph.txt`；加 `--draw-svg` 生成 `artifacts/lenet_bn_module_level.svg`、`artifacts/lenet_bn_operator_level.svg`，再加 `--draw-getattr` 生成 `artifacts/lenet_bn_operator_level_full.svg`。
 - 验收：完整打印计算图与依赖边，并标出 2 条 `Conv -> BN -> ReLU` 融合候选。
-- 状态：**已完成**。module 级 16 节点/15 边，operator 级 34 节点/33 边，找到 2 条 `conv2d -> batch_norm -> relu -> max_pool2d` 候选链；产物 `artifacts/lenet_bn_graph.txt` 及两份 GraphModule forward 代码。实现要点：为穿透 BN 需临时屏蔽 `_check_input_dim` 的符号追踪控制流（`disable_bn_input_check`）。
+- 状态：**已完成**。module 级 16 节点/15 边，operator 级 34 节点/33 边，找到 2 条 `conv2d -> batch_norm -> relu -> max_pool2d` 候选链；产物 `artifacts/lenet_bn_graph.txt` 及两份 GraphModule forward 代码。实现要点：为穿透 BN 需临时屏蔽 `_check_input_dim` 的符号追踪控制流（`disable_bn_input_check`）。可视化默认关闭：`--draw-svg` 输出 module/operator 两张图，operator 级默认隐藏 18 个 `get_attr` 常量节点，`--draw-getattr` 额外输出保留全部常量节点的完整版；依赖 `pydot` + `graphviz`，缺失时自动跳过。
 
 ### Stage 3 手写 fx pass：Conv+BN+ReLU 融合
 - 内容：
   1. 推导把 BN 折叠进 conv 权重与偏置的公式（推理态）：`s = gamma / sqrt(running_var + eps)`，`W' = s*W`，`b' = s*(b - running_mean) + beta`。
   2. 用 fx 遍历定位 `Conv-BN-ReLU` 三元组，替换为单个融合节点。
   3. 数值对齐（最大绝对误差）、节点数前后对比、CPU 延迟前后对比。
-- 交付：`src/stage3_pass/fusion_pass.py`、`verify.py`、`artifacts/stage3_fusion_report.txt`。
+- 交付：`src/stage3_pass/fusion_pass.py`、`verify.py`、`artifacts/stage3_fusion_report.txt`；加 `--draw-svg` 生成折叠前/后的 `artifacts/stage3_model_before.svg`、`artifacts/stage3_model_after.svg`。
 - 验收：输出误差 < 1e-5，节点数下降，延迟有可测量变化。
 - 学习点：编译器工程师的核心动作——写 pass 并证明其语义等价。这是本项目的重心。
-- 状态：**已完成**。在 LeNet-BN 上折叠 2 个 `Conv+BN+ReLU` 三元组：误差 9.686e-08，节点 16→12，BN 模块 2→0，延迟 2.381ms→2.113ms（1.13x）；产物 `artifacts/stage3_fusion_report.txt`、`stage3_model_before/after.py`。
+- 状态：**已完成**。在 LeNet-BN 上折叠 2 个 `Conv+BN+ReLU` 三元组：误差 9.686e-08，节点 16→12，BN 模块 2→0，延迟 2.381ms→2.113ms（1.13x）；产物 `artifacts/stage3_fusion_report.txt`、`stage3_model_before/after.py`，可选 SVG 对比图 `stage3_model_before/after.svg`。
 
 ### Stage 4 torch.compile / Inductor 观察
 - 内容：对 LeNet-BN `torch.compile`；用 `TORCH_COMPILE_DEBUG=1` 导出生成的算子代码；对比 eager 与 compiled 的延迟；记录后端是否自行折叠 BN。
@@ -122,7 +122,8 @@ Stage 0 与 Stage 1 是进入这条主线的前置：环境准备与模型本身
 ├── src/
 │   ├── common/
 │   │   ├── seed.py           # 固定随机种子、设备选择
-│   │   └── timer.py          # 基准计时：warmup + 多次取中位数
+│   │   ├── timer.py          # 基准计时：warmup + 多次取中位数
+│   │   └── graph_draw.py      # 可选 Graphviz SVG 导出（缺失依赖时跳过）
 │   ├── stage1_lenet/
 │   │   ├── model.py          # nn.Module 版 LeNet-BN（唯一模型）
 │   │   ├── manual_backprop.py# 手写 forward/backward，与 autograd 对比
